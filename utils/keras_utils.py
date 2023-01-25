@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import pickle
 
 mpl.style.use('seaborn-paper')
 
@@ -152,7 +153,7 @@ def train_model(model:Model, dataset_id, dataset_prefix, dataset_fold_id=None, e
     optm = Adam(lr=learning_rate)
 
     if compile_model:
-        model.compile(optimizer=optm, loss='categorical_crossentropy', metrics=['accuracy'])
+        model.compile(optimizer=optm, loss='categorical_crossentropy', metrics=['accuracy', f1_score])
 
     if val_subset is not None:
         X_test = X_test[:val_subset]
@@ -186,7 +187,7 @@ def evaluate_model(model:Model, dataset_id, dataset_prefix, dataset_fold_id=None
     y_test = to_categorical(y_test, len(np.unique(y_test)))
 
     optm = Adam(lr=1e-3)
-    model.compile(optimizer=optm, loss='categorical_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer=optm, loss='categorical_crossentropy', metrics=['accuracy', f1_score])
 
     if dataset_fold_id is None:
         weight_fn = "./weights/%s_weights.h5" % dataset_prefix
@@ -195,13 +196,16 @@ def evaluate_model(model:Model, dataset_id, dataset_prefix, dataset_fold_id=None
     model.load_weights(weight_fn)
 
     if test_data_subset is not None:
-        X_test = X_test[:test_data_subset]
-        y_test = y_test[:test_data_subset]
+        X_test = X_test[test_data_subset:]
+        y_test = y_test[test_data_subset:]
 
     print("\nEvaluating : ")
-    loss, accuracy = model.evaluate(X_test, y_test, batch_size=batch_size)
+    loss, accuracy, F1 = model.evaluate(X_test, y_test, batch_size=batch_size)
+    y_hat = model.predict(X_test)
+    pickle.dump((y_hat, y_test), open("m_lstm_predictions.pkl", "wb"))
     print()
     print("Final Accuracy : ", accuracy)
+    print("Final F1 score : ", F1)
 
     return accuracy, loss
 
@@ -240,7 +244,7 @@ def compute_average_gradient_norm(model:Model, dataset_id, dataset_fold_id=None,
     y_train = to_categorical(y_train, len(np.unique(y_train)))
 
     optm = Adam(lr=learning_rate)
-    model.compile(optimizer=optm, loss='categorical_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer=optm, loss='categorical_crossentropy', metrics=['accuracy', f1_score])
 
     average_gradient = _average_gradient_norm(model, X_train, y_train, batch_size)
     print("Average gradient norm : ", average_gradient)
